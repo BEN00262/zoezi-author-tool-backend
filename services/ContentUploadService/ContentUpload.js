@@ -5,25 +5,42 @@
  */
 
 const excelToJson = require('convert-excel-to-json');
-const { QuestionsModel, SubjectModel, PaperModel, GradeModel } = require('../../models');
+const yup = require('yup');
 
-const OPTION_SPLITTING_REGEX = /[A-D]\.\s*([A-Za-z]*[\s,'\-]*[\sa-z]*)/g
-const optionsIndex = { 'A':0, 'B':1, 'C':2, 'D':3 }
+const { QuestionsModel, SubjectModel, PaperModel, GradeModel } = require('../../models');
+const { ZoeziCustomError } = require('../../errors');
+const { ValidationError } = require('yup');
+
+const OPTION_SPLITTING_REGEX = /[A-D]\.\s*([A-Za-z]*[\s,'\-]*[\sa-z]*)/g;
+const optionsIndex = { 'A':0, 'B':1, 'C':2, 'D':3 };
+
+const questionSchema = yup.object().shape({
+    question: yup.string().required(),
+    options: yup.string().required(),
+    answer: yup.string().required(),
+    additionalInfo: yup.string().required(),
+    topic: yup.string().required(),
+    subTopic: yup.string().required()
+})
+
+
+const questionValidation = yup.array().of(questionSchema);
+
 
 // string => number => boolean
 const check_if_correct = correct_option => index => optionsIndex[correct_option] === index
 
-// string => string => Promise
-const findOrUpdateGrade = async (gradeName,filename) => {
+// string => buffer => Promise
+const findOrUpdateGrade = async (gradeName,filebuffer) => {
     try {
         let found_grade = await GradeModel.findOne({ grade: gradeName.toLowerCase() }).populate('subjects');
 
         const check_if_subject_Exists = subject => found_grade.subjects.find(x => x.subject === subject)
 
-        if (!found_grade){ throw new Error("Invalid grade used") }
+        if (!found_grade){ throw new ZoeziCustomError("Invalid grade used") }
 
         let fileData = excelToJson({
-            sourceFile:filename,
+            source: filebuffer,
             header:{ rows:1 },
             columnToKey:{
                 A:'question',
@@ -35,42 +52,46 @@ const findOrUpdateGrade = async (gradeName,filename) => {
             }
         });
 
-        // { string, [{ }] } => string
         const _save = async ({subject, questions}) => {
-            try {
-                let saved_questions = await QuestionsModel.insertMany(questions);
+            let saved_questions = await QuestionsModel.insertMany(questions);
 
-                if (!saved_questions){
-                    throw new Error(`Failed to save questions to grade ${gradeName}`)
-                }
-
-                if (!check_if_subject_Exists(subject)){
-                    throw new Error(`subject ${subject} does not exist in grade ${gradename}`);
-                }
-
-                let saved_questions_ids = saved_questions.map(x => x._id);
-
-                await SubjectModel.findOneAndUpdate({ subject }, {
-                    $push: { questions: saved_questions_ids }
-                })
-
-                let createdPaper = await PaperModel.create({
-                    isSubmitted: false,
-                    grade: gradeName,
-                    subject,
-                    paperType: 'Imported',
-                    paperName: `${gradeName}_${subject}_${(new Date).toLocaleDateString()}`,
-                    questions: saved_questions_ids
-                })
-
-                return createdPaper._id
-            }catch(error){
-                console.log(error);
+            if (!saved_questions){
+                throw new ZoeziCustomError(
+                    `Failed to save questions to grade ${gradeName}. Please try again`
+                )
             }
+
+            if (!check_if_subject_Exists(subject)){
+                throw new ZoeziCustomError(
+                    `subject ${subject} does not exist in grade ${gradename}`
+                );
+            }
+
+            let saved_questions_ids = saved_questions.map(x => x._id);
+
+            await SubjectModel.findOneAndUpdate({ subject }, {
+                $push: { questions: saved_questions_ids }
+            })
+
+            let createdPaper = await PaperModel.create({
+                isSubmitted: false,
+                grade: gradeName,
+                subject,
+                paperType: 'Imported',
+                paperName: `${gradeName}_${subject}_${(new Date).toLocaleDateString()}`,
+                questions: saved_questions_ids
+            })
+
+            return createdPaper._id
         }
 
         return Promise.all(Object.entries(fileData).map(([subject, questions]) => {
             if (!questions || !Array.isArray(questions) || !questions.length){ return; }
+
+            if (!questionValidation.validateSync(questions)){
+               return;
+            }
+
             questions = transformToV1(questions).map(q => ({
                 ...q,
                 subject,
@@ -80,6 +101,12 @@ const findOrUpdateGrade = async (gradeName,filename) => {
         }).filter(x => x).map(_save));
 
     }catch(error){
+        if( error instanceof ValidationError){
+            throw new ZoeziCustomError(
+                `The excel file contains questions that do not follow the required question standard.
+                 Please recheck the manual and ensure all required fields are filled`
+            )
+        }
         throw error;
     }
 }

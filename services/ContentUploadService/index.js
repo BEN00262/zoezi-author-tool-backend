@@ -1,10 +1,13 @@
 const { AuthorModel } = require('../../models');
 const _uploadFileFunc = require('./ContentUpload');
+const { ZoeziCustomError } = require('../../errors');
+
+const DEFAULT_ERROR_MESSAGE = "Failed to upload file. Try again. If it persists raise an issue with the Admin. Thanks";
 
 // rate limit on this 
 const uploadFile = async (authorID,gradeName,file_object) => {
     try {
-        let paper_ids = await _uploadFileFunc(gradeName, file_object.path);
+        let paper_ids = await _uploadFileFunc(gradeName, file_object.buffer);
 
         await AuthorModel.findOneAndUpdate({ _id: authorID }, { $push: {
             papers: paper_ids
@@ -12,9 +15,10 @@ const uploadFile = async (authorID,gradeName,file_object) => {
 
         return { success: true }
     }catch(error){
+        // console.log(error); // log this 
         return {
             success: false,
-            error: "Failed to upload file. Try again. If it persists raise an issue with the Admin. Thanks"
+            error: error instanceof ZoeziCustomError ? error.message : DEFAULT_ERROR_MESSAGE
         }
     }
 }
