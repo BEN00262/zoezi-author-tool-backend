@@ -5,11 +5,17 @@ const { ZoeziCustomError } = require('../../errors');
 const DEFAULT_ERROR_MESSAGE = "Failed to upload file. Try again. If it persists raise an issue with the Admin. Thanks";
 
 // rate limit on this 
-const uploadFile = async (authorID,gradeName,file_object) => {
+const uploadFile = async (author,gradeName,file_object) => {
     try {
-        let paper_ids = await _uploadFileFunc(gradeName, file_object.buffer);
+        const contentCanDo = author.contentCanDo.find(x => x.grade === gradeName);
 
-        await AuthorModel.findOneAndUpdate({ _id: authorID }, { $push: {
+        if (!contentCanDo){
+            throw new ZoeziCustomError(`You don't have the rights to upload to grade: ${gradeName}`)
+        }
+
+        let paper_ids = await _uploadFileFunc(contentCanDo.subjects,gradeName, file_object.buffer);
+
+        await AuthorModel.findOneAndUpdate({ _id: author._id }, { $push: {
             papers: paper_ids
         }})
 

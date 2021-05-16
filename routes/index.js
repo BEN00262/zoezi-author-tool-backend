@@ -1,7 +1,7 @@
 const express = require("express");
 
 const { ContentService, ContentUploadService } = require('../services');
-const { ensureAuthenticated } = require("../middlewares/auth.js");
+const { ensureAuthenticated, hasActiveSubscription } = require("../middlewares");
 const { multerUploader } = require('../utils');
 
 const router = express.Router();
@@ -9,7 +9,16 @@ const router = express.Router();
 router.use(ensureAuthenticated);
 
 router.post('/import-excel-paper',[multerUploader.single('excelFile')],(req,res) => {
-    ContentUploadService.uploadFile(req.user._id, req.body.grade, req.file).then(response => {
+    const { grade } = req.body;
+
+    if (!hasActiveSubscription(grade,req.user.subscriptions)){
+        return res.json({
+            success: false,
+            error: `You do not have an active subscription to grade: ${grade}`
+        })
+    }
+
+    ContentUploadService.uploadFile(req.user, grade, req.file).then(response => {
         res.json(response)
     })
 })
@@ -23,9 +32,25 @@ router.get('/search/:paperID/:searchTerm',(req,res) => {
 })
 
 router.post("/create-paper",(req,res) => {
+    const { grade } = req.body;
+
+    if (!hasActiveSubscription(grade,req.user.subscriptions)){
+        return res.json({
+            success: false,
+            errors: [`You do not have an active subscription to grade: ${grade}`]
+        })
+    }
+
     ContentService.createPaper(req.body,req.user._id).then(createdPaper => {
         res.json(createdPaper);
     });
+})
+
+router.delete("/remove-paper/:paperID",(req,res) => {
+    // this paper should not have been submitted if so just return an error
+    ContentService.removePaper(req.params.paperID).then(response => {
+        res.json(response);
+    })
 })
 
 router.get("/papers",(req,res) => {

@@ -46,6 +46,20 @@ const UserSchema = new mongoose.Schema({
       type: String
     }]
   }],
+  subscriptions: [{
+    status: {
+      type: Boolean,
+      default: false
+    },
+    gradeName: {
+      type: String,
+      required: true
+    },
+    subscription_end: {
+      type: Date,
+      required: true
+    }
+  }],
   paperTypeCanDo:[{
     type: String,
     required: true

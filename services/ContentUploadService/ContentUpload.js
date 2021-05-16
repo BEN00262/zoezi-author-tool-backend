@@ -30,12 +30,13 @@ const questionValidation = yup.array().of(questionSchema);
 // string => number => boolean
 const check_if_correct = correct_option => index => optionsIndex[correct_option] === index
 
-// string => buffer => Promise
-const findOrUpdateGrade = async (gradeName,filebuffer) => {
+// [string] => string => buffer => Promise
+const findOrUpdateGrade = async (contentCanDo_subjects,gradeName,filebuffer) => {
     try {
         let found_grade = await GradeModel.findOne({ grade: gradeName.toLowerCase() }).populate('subjects');
 
-        const check_if_subject_Exists = subject => found_grade.subjects.find(x => x.subject === subject)
+        const check_if_subject_Exists = subject => found_grade.subjects.find(x => x.subject === subject);
+        const check_if_has_subject_rights = subject => contentCanDo_subjects.find(x => x === subject);
 
         if (!found_grade){ throw new ZoeziCustomError("Invalid grade used") }
 
@@ -61,10 +62,18 @@ const findOrUpdateGrade = async (gradeName,filebuffer) => {
                 )
             }
 
+            console.log(subject);
+            // console.log(check_if_subject_Exists(subject))
             if (!check_if_subject_Exists(subject)){
                 throw new ZoeziCustomError(
                     `subject ${subject} does not exist in grade ${gradename}`
                 );
+            }
+
+            if (!check_if_has_subject_rights(subject)){
+                throw new ZoeziCustomError(
+                    `You dont have the rights to create subject: ${subject} in grade: ${gradeName}`
+                )
             }
 
             let saved_questions_ids = saved_questions.map(x => x._id);
@@ -86,10 +95,9 @@ const findOrUpdateGrade = async (gradeName,filebuffer) => {
         }
 
         return Promise.all(Object.entries(fileData).map(([subject, questions]) => {
-            if (!questions || !Array.isArray(questions) || !questions.length){ return; }
-
-            if (!questionValidation.validateSync(questions)){
-               return;
+            // !questions || !Array.isArray(questions) || 
+            if (!questions.length || !questionValidation.validateSync(questions)){ 
+                return; 
             }
 
             questions = transformToV1(questions).map(q => ({

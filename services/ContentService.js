@@ -11,9 +11,7 @@ const NORMAL = "normal";
 const COMPREHENSION = "comprehension";
 
 const getPapers = _id => {
-    return AuthorModel.findOne({
-        _id
-    })
+    return AuthorModel.findOne({ _id })
         .populate('papers')
         .then(found_data => {
             if (!found_data){
@@ -25,6 +23,33 @@ const getPapers = _id => {
             consola.error(error);
             return [];
         })
+}
+
+// delete a paper
+const removePaper = async _id => {
+    try {
+        const paperToBeDeleted = await PaperModel.findOne({ _id });
+
+        if (!paperToBeDeleted){
+            return {
+                success: false,
+                error: `paper does not exist`
+            }
+        }
+
+        await QuestionsModel.deleteMany({_id: {
+            $in: paperToBeDeleted.questions
+        }})
+
+        await paperToBeDeleted.delete();
+
+        return { success: true }
+    }catch(error){
+        return {
+            success: false,
+            error: "Failed!!"
+        }
+    }
 }
 
 
@@ -328,6 +353,7 @@ const updateQuestion = async (questionInput,questionID) => {
 }
 module.exports = {
     getPapers,
+    removePaper,
     searchQuestion,
     createPaper,
     submitPaper,
