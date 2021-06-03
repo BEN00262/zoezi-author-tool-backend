@@ -61,9 +61,7 @@ const findOrUpdateGrade = async (contentCanDo_subjects,gradeName,filebuffer) => 
                     `Failed to save questions to grade ${gradeName}. Please try again`
                 )
             }
-
-            console.log(subject);
-            // console.log(check_if_subject_Exists(subject))
+            
             if (!check_if_subject_Exists(subject)){
                 throw new ZoeziCustomError(
                     `subject ${subject} does not exist in grade ${gradename}`

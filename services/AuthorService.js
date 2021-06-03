@@ -65,13 +65,7 @@ const login = async (email,password,callback) => {
                 }
 
                 // also place the roles here
-                callback({
-                    success: true,
-                    token: jwt.sign({ 
-                            _id: found_user._id
-                        },
-                        process.env.SECRET_KEY
-                    ),
+                callback({ success: true, token: jwt.sign({ _id: found_user._id }, process.env.SECRET_KEY ),
                     roles:found_user.roles,
                     errors: null
                 });

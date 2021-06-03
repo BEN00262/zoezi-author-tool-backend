@@ -1,50 +1,63 @@
 const consola = require('consola');
+const mongoose = require('mongoose');
 
 // NOTE: decouple the models from the services later
 // local imports
 const { PaperModel,AuthorModel,QuestionsModel, SubjectModel, GradeModel } = require('../models');
 const sendToSubmissionQueue = require('../rabbitmq_client');
 const { marshalIDTypes } = require('../utils');
+const { ZoeziCustomError } = require('../errors');
 
 // global declarations
 const NORMAL = "normal";
 const COMPREHENSION = "comprehension";
 
-const getPapers = _id => {
-    return AuthorModel.findOne({ _id })
-        .populate('papers')
-        .then(found_data => {
-            if (!found_data){
-                throw new Error("Papers not found");
-            }
-            return found_data.papers;
-        })
-        .catch(error => {
-            consola.error(error);
-            return [];
-        })
+const getPapers = async _id => {
+    try {
+        let authorPapers = await AuthorModel.findOne({ _id }).populate('papers')
+
+        if (!authorPapers){
+            throw new ZoeziCustomError("Papers not found")
+        }
+
+        return authorPapers.papers
+    } catch(error){
+        consola.error(error);
+        return [];
+    }
 }
 
 // delete a paper
+// make this transactional
 const removePaper = async _id => {
+    const session = await mongoose.startSession()
+    session.startTransaction()
+
     try {
-        const paperToBeDeleted = await PaperModel.findOne({ _id });
+        const paperToBeDeleted = await PaperModel.findOne({ _id }).session(session)
 
         if (!paperToBeDeleted){
-            return {
-                success: false,
-                error: `paper does not exist`
-            }
+            throw new ZoeziCustomError(`paper does not exist`)
         }
 
         await QuestionsModel.deleteMany({_id: {
             $in: paperToBeDeleted.questions
-        }})
+        }}).session(session);
 
-        await paperToBeDeleted.delete();
+        await paperToBeDeleted.delete().session(session);
 
+        await session.commitTransaction()
         return { success: true }
     }catch(error){
+        await session.abortTransaction()
+
+        if (error instanceof ZoeziCustomError){
+             return {
+                success: false,
+                error: error.message
+            }
+        }
+
         return {
             success: false,
             error: "Failed!!"
@@ -158,37 +171,23 @@ const getQuestions = async (paperID, skip = 0) => {
         consola.error(error);
         return null;
     }
-    // return PaperModel.findOne({
-    //     _id:marshalIDTypes(paperID)
-    // })
-    //     .populate("questions")
-    //     .then(data => {
-    //         return {...data.toObject()}
-    //     })
-    //     .catch(error => {
-    //         consola.error(error);
-    //         return null;
-    //     })
 }
 
-// in --> inout trtr
+// paperID -> searchTerm -> response
 const searchQuestion = async (paperID,searchTerm) => {
     try {
+        // find a way to relate to the search stuff in mongodb
         let foundTerm = await PaperModel.findOne({ _id: paperID })
             .populate({
                 path:"questions",
                 model:'ques',
-                match: {
-                    question: { $regex: searchTerm, $options:'i' }
-                }
+                match: { question: { $regex: searchTerm, $options:'i' } }
             });
 
         if (!foundTerm){
             return {
                 success: false,
-                errors: [
-                    "Search term not found"
-                ]
+                errors: [ "Search term not found" ]
             }
         }
 
@@ -200,9 +199,7 @@ const searchQuestion = async (paperID,searchTerm) => {
         consola.error(error);
         return {
             success: false,
-            errors: [
-                "Failed to create question"
-            ]
+            errors: [ "Failed to create question" ]
         }
     }
 }
@@ -288,16 +285,12 @@ const createQuestion = async (questionInput,canReview) => {
 const removeQuestion = async (questionID) => {
     try {
         await QuestionsModel.deleteOne({_id:questionID});
-        return {
-            success: true
-        }
+        return { success: true }
     }catch(error){
         consola.error(error);
         return {
             success: false,
-            errors: [
-                error.message
-            ]
+            errors: [ error.message ]
         }
     }
 }
@@ -324,7 +317,7 @@ const updateQuestion = async (questionInput,questionID) => {
                 };
                 break;
             case COMPREHENSION:
-                questionObject ={
+                questionObject = {
                     ...questionObject,
                     children,
                 };

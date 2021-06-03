@@ -16,10 +16,7 @@ const sendToSubmissionQueue = (clientID, paperID) => new Promise((resolve,reject
 
             channel.assertQueue(QUEUE, { durable: true });
 
-            channel.sendToQueue(QUEUE,Buffer.from(message), {
-                persistent: true
-            });
-
+            channel.sendToQueue(QUEUE,Buffer.from(message), { persistent: true });
             resolve(true);
         });
     })
