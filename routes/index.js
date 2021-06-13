@@ -21,10 +21,27 @@ router.post('/import-excel-paper',[multerUploader.single('excelFile')],(req,res)
     ContentUploadService.uploadFile(req.user, grade, req.file).then(response => res.json(response))
 })
 
-router.get('/search/:paperID/:searchTerm',(req,res) => {
-    const { paperID, searchTerm } = req.params;
+// set question as sample --> only the person who owns the question or a reviewer
+router.post('/set-sample/:_id',(req,res) => {
+    const { isSample } = req.body;
+    ContentService.setIsSample(req.params._id, isSample)
+        .then(response => res.json(response))
+})
 
-    ContentService.searchQuestion(paperID, searchTerm).then(results => res.json(results))
+// use query strings
+router.get('/search/:paperID',(req,res) => {
+    const { searchTerm, searchCategory } = req.query;
+
+    const searchDic = {}
+
+    switch(searchCategory){
+        case "isSample":
+            searchDic.isSample = true
+    }
+
+    const { paperID } = req.params;
+
+    ContentService.searchQuestion(paperID, searchTerm, searchDic).then(results => res.json(results))
 })
 
 router.post("/create-paper",(req,res) => {

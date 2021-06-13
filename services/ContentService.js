@@ -117,6 +117,25 @@ const submitPaper = (clientID,paperID) => {
     })
 }
 
+// protect this
+const setIsSample = async (_id, isSample) => {
+    try {
+        await QuestionsModel.findOneAndUpdate({ _id }, { isSample });
+        return {
+            success: true,
+            // message: 'Your paper has been queued for submission'
+        }
+    }catch(error){
+        consola.error(error);
+        return {
+            success: false,
+            errors:[
+                "Failed to create paper"
+            ]
+        }
+    }
+}
+
 // increment a counter on the side of the author in the case
 // that their question is accepted --> push this as a job to rabbitMQ
 const approveQuestion = async (questionID) => {
@@ -174,14 +193,14 @@ const getQuestions = async (paperID, skip = 0) => {
 }
 
 // paperID -> searchTerm -> response
-const searchQuestion = async (paperID,searchTerm) => {
+const searchQuestion = async (paperID,searchTerm, searchDic) => {
     try {
         // find a way to relate to the search stuff in mongodb
         let foundTerm = await PaperModel.findOne({ _id: paperID })
             .populate({
                 path:"questions",
                 model:'ques',
-                match: { question: { $regex: searchTerm, $options:'i' } }
+                match: { question: { $regex: searchTerm || " ", $options:'i' }, ...searchDic }
             });
 
         if (!foundTerm){
@@ -346,6 +365,7 @@ const updateQuestion = async (questionInput,questionID) => {
 }
 module.exports = {
     getPapers,
+    setIsSample,
     removePaper,
     searchQuestion,
     createPaper,
