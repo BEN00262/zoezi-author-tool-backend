@@ -5,6 +5,10 @@ const questionSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    isSample: {
+        type: Boolean,
+        default: false
+    },
     topic:{
         type: String,
         required: true

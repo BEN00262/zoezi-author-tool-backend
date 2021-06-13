@@ -6,7 +6,7 @@ module.exports = {
         const authToken = req.headers["authtoken"];
 
         if(!authToken){
-            console.log(authToken);
+            // ip ban 
             return res.status(403).json({message:"Authorization required"})
         }
 
