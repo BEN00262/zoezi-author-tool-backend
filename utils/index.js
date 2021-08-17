@@ -36,5 +36,6 @@ module.exports = {
         //         return cb(new Error('Only .xlsx file format allowed!'));
         //     }
         // }
-    })
+    }),
+    massageResponse: (status_code, response) => ({status_code, response: { status: true, ...response }})
 }

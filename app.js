@@ -13,6 +13,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 app.use("/user",require("./routes/users.js"));
+app.use("/admin", require("./routes/admin"));
 app.use("/",require("./routes/index.js"));
 
 mongoose.connect(process.env.MONGO_URI,{

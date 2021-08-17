@@ -5,6 +5,16 @@ let subjectSchema = new mongoose.Schema({
 		type:String,
 		required:true
 	},
+	// avatarPath: {
+	// 	url: {
+	// 		type: String,
+	// 		required: true
+	// 	},
+	// 	publicID: {
+	// 		type: String,
+	// 		required: true
+	// 	}
+	// },
 	isVisible: {
 		type: Boolean,
 		default: true
