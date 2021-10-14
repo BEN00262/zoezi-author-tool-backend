@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 // NOTE: decouple the models from the services later
 // local imports
-const { PaperModel,AuthorModel,QuestionsModel, SubjectModel, GradeModel } = require('../models');
+const { PaperModel, AuthorModel, QuestionsModel, SubjectModel, GradeModel, SpecialPaperModel } = require('../models');
 const sendToSubmissionQueue = require('../rabbitmq_client');
 const { marshalIDTypes } = require('../utils');
 const { ZoeziCustomError } = require('../errors');
@@ -14,14 +14,18 @@ const COMPREHENSION = "comprehension";
 
 const getPapers = async _id => {
     try {
-        let authorPapers = await AuthorModel.findOne({ _id }).populate('papers')
+        // link the special papers to the author too
+        let authorPapers = await AuthorModel.findOne({ _id })
+            .populate('papers')
+            .populate('specialpapers')
 
-        if (!authorPapers){
+        if (!authorPapers) {
             throw new ZoeziCustomError("Papers not found")
         }
 
-        return authorPapers.papers
-    } catch(error){
+        // we create a thing for all the papers in the system
+        return { npapers: authorPapers.papers, spapers: authorPapers.specialpapers }
+    } catch (error) {
         consola.error(error);
         return [];
     }
@@ -36,23 +40,25 @@ const removePaper = async _id => {
     try {
         const paperToBeDeleted = await PaperModel.findOne({ _id }).session(session)
 
-        if (!paperToBeDeleted){
+        if (!paperToBeDeleted) {
             throw new ZoeziCustomError(`paper does not exist`)
         }
 
-        await QuestionsModel.deleteMany({_id: {
-            $in: paperToBeDeleted.questions
-        }}).session(session);
+        await QuestionsModel.deleteMany({
+            _id: {
+                $in: paperToBeDeleted.questions
+            }
+        }).session(session);
 
         await paperToBeDeleted.delete().session(session);
 
         await session.commitTransaction()
         return { success: true }
-    }catch(error){
+    } catch (error) {
         await session.abortTransaction()
 
-        if (error instanceof ZoeziCustomError){
-             return {
+        if (error instanceof ZoeziCustomError) {
+            return {
                 success: false,
                 error: error.message
             }
@@ -66,27 +72,29 @@ const removePaper = async _id => {
 }
 
 
-const createPaper = (paper,author_id) => {
-    const { grade,subject, paperType } = paper;
+const createPaper = (paper, author_id) => {
+    const { grade, subject, paperType } = paper;
 
     return new PaperModel({
-        grade,
-        subject,
-        paperType,
-        paperName:`${grade}_${subject}_${(new Date).toLocaleDateString()}`
-    })
+            grade,
+            subject,
+            paperType,
+            paperName: `${grade}_${subject}_${(new Date).toLocaleDateString()}`
+        })
         .save()
-        .then(async (saved_paper) => {
-            await AuthorModel.findOneAndUpdate({_id:author_id},{$push:{
-                papers:saved_paper._id
-            }})
-            return {success: true,errors:null,paper:saved_paper}
+        .then(async(saved_paper) => {
+            await AuthorModel.findOneAndUpdate({ _id: author_id }, {
+                $push: {
+                    papers: saved_paper._id
+                }
+            })
+            return { success: true, errors: null, paper: saved_paper }
         })
         .catch(error => {
             consola.error(error);
             return {
                 success: false,
-                errors:[
+                errors: [
                     "Failed to create paper"
                 ]
             }
@@ -98,38 +106,38 @@ const createPaper = (paper,author_id) => {
 // the idea is to spread the work properly between the reviewers
 // pick the reviewer with the least amount of papers in the submission queue
 // add it there 
-const submitPaper = (clientID,paperID) => {
-   return sendToSubmissionQueue(clientID,paperID)
-    .then(_ => {
-        return {
-            success: true,
-            message: 'Your paper has been queued for submission'
-        }
-    })
-    .catch(error => {
-        consola.error(error);
-        return {
-            success: false,
-            errors:[
-                "Failed to create paper"
-            ]
-        }
-    })
+const submitPaper = (clientID, paperID) => {
+    return sendToSubmissionQueue(clientID, paperID)
+        .then(_ => {
+            return {
+                success: true,
+                message: 'Your paper has been queued for submission'
+            }
+        })
+        .catch(error => {
+            consola.error(error);
+            return {
+                success: false,
+                errors: [
+                    "Failed to create paper"
+                ]
+            }
+        })
 }
 
 // protect this
-const setIsSample = async (_id, isSample) => {
+const setIsSample = async(_id, isSample) => {
     try {
         await QuestionsModel.findOneAndUpdate({ _id }, { isSample });
         return {
             success: true,
             // message: 'Your paper has been queued for submission'
         }
-    }catch(error){
+    } catch (error) {
         consola.error(error);
         return {
             success: false,
-            errors:[
+            errors: [
                 "Failed to create paper"
             ]
         }
@@ -138,18 +146,18 @@ const setIsSample = async (_id, isSample) => {
 
 // increment a counter on the side of the author in the case
 // that their question is accepted --> push this as a job to rabbitMQ
-const approveQuestion = async (questionID) => {
+const approveQuestion = async(questionID) => {
     try {
         await QuestionsModel.findOneAndUpdate({
-            _id:questionID
-        },{$set:{isExposed:true,status:"approved"}});
+            _id: questionID
+        }, { $set: { isExposed: true, status: "approved" } });
 
-        return {success:true}
-    }catch(error){
+        return { success: true }
+    } catch (error) {
         consola.error(error);
         return {
-            success:false,
-            errors:[
+            success: false,
+            errors: [
                 "Failed to approve question"
             ]
         }
@@ -163,50 +171,54 @@ const approveQuestion = async (questionID) => {
  * @param {number} limit 
  * @returns 
  */
-const getQuestions = async (paperID, skip = 0) => {
+const getQuestions = async(paperID, is_special, skip = 0) => {
+    // we fetch using this but what about the other type of questions from the new special papers
+
     try {
         const documentsPerPage = 5;
 
         // find a much better way to handle this
-        let number_questions = await PaperModel.findOne({ _id: marshalIDTypes(paperID)});
+        let number_questions = await (is_special ? SpecialPaperModel : PaperModel).findOne({ _id: marshalIDTypes(paperID) });
 
-        let paperFound = await PaperModel.findOne({ _id: marshalIDTypes(paperID) }).populate([{
-            path: 'questions',
-            model:'ques',
-            options: {
-                skip: skip * documentsPerPage,
-                limit: documentsPerPage
-            },
-        }]);
+        let paperFound = await (is_special ? SpecialPaperModel.findOne({ _id: marshalIDTypes(paperID) }): PaperModel.findOne({ _id: marshalIDTypes(paperID) }))
+            .populate([{
+                path: 'questions',
+                model: 'ques',
+                options: {
+                    skip: skip * documentsPerPage,
+                    limit: documentsPerPage
+                },
+            }]);
 
         let doc_count = number_questions.questions.length;
 
         return {
             totalDocuments: doc_count,
-            pageCount: Math.ceil(doc_count/documentsPerPage),
+            pageCount: Math.ceil(doc_count / documentsPerPage),
             paper: paperFound.toObject()
         }
-    }catch(error){
+    } catch (error) {
         consola.error(error);
         return null;
     }
 }
 
 // paperID -> searchTerm -> response
-const searchQuestion = async (paperID,searchTerm, searchDic) => {
+const searchQuestion = async(paperID, searchTerm, searchDic) => {
     try {
         // find a way to relate to the search stuff in mongodb
+        // check if this is also a special paper type
         let foundTerm = await PaperModel.findOne({ _id: paperID })
             .populate({
-                path:"questions",
-                model:'ques',
-                match: { question: { $regex: searchTerm || " ", $options:'i' }, ...searchDic }
+                path: "questions",
+                model: 'ques',
+                match: { question: { $regex: searchTerm || " ", $options: 'i' }, ...searchDic }
             });
 
-        if (!foundTerm){
+        if (!foundTerm) {
             return {
                 success: false,
-                errors: [ "Search term not found" ]
+                errors: ["Search term not found"]
             }
         }
 
@@ -214,51 +226,58 @@ const searchQuestion = async (paperID,searchTerm, searchDic) => {
             success: true,
             paper: foundTerm
         }
-    }catch(error){
+    } catch (error) {
         consola.error(error);
         return {
             success: false,
-            errors: [ "Failed to create question" ]
+            errors: ["Failed to create question"]
         }
     }
 }
 
 // this is the last entry point to conserve
 // NOTE: improve this
-const createQuestion = async (questionInput,canReview) => {
+const createQuestion = async(questionInput, canReview, is_special = false) => {
     try {
         const {
-            questionType,question,
-            options_next,additionalInfo,
-            children,question_id,
-            topic,subTopic,paperID,
-            paperSubject,paperGrade
+            questionType,
+            question,
+            options_next,
+            additionalInfo,
+            children,
+            question_id,
+            topic,
+            subTopic,
+            paperID,
+            paperSubject,
+            paperGrade, // in a special paper this is the special paper kcpe
         } = questionInput;
-    
-        if(question_id){
-            return updateQuestion(questionInput,question_id);
+
+        if (question_id) {
+            return updateQuestion(questionInput, question_id);
         }
 
-        let found_data = await GradeModel.findOne({ grade: paperGrade })
-                            .populate("subjects","subject _id");
+        // just incase
+        is_special = is_special || false
 
-        let subjectID = found_data.subjects.find(x => x.subject === paperSubject);
-
-        
         let questionObject = {
             questionType,
             question,
             topic,
             subTopic,
-            version:"1",
-            subject:paperSubject,
-            grade:paperGrade,
+            version: "1",
+
+            // for special papers this refers to the name of the actual subject
+            subject: paperSubject,
+
+            // for special papers this refers to the name of the top level thing
+            grade: paperGrade || "kcpe",
             isExperimental: true,
             isExposed: canReview,
             status: canReview ? "approved" : "ongoing"
         };
 
-        switch(questionType){
+        switch (questionType) {
             case NORMAL:
                 questionObject = {
                     ...questionObject,
@@ -267,7 +286,7 @@ const createQuestion = async (questionInput,canReview) => {
                 };
                 break;
             case COMPREHENSION:
-                questionObject ={
+                questionObject = {
                     ...questionObject,
                     children,
                 };
@@ -277,19 +296,33 @@ const createQuestion = async (questionInput,canReview) => {
         }
 
 
-        let saved_question = await new QuestionsModel(questionObject).save();
+        let saved_question = await QuestionsModel.create(questionObject);
 
-        await Promise.all([
-            PaperModel.findOneAndUpdate({_id:marshalIDTypes(paperID)},{$push:{
-                questions:saved_question._id
-            }}), 
-            SubjectModel.findOneAndUpdate({_id:marshalIDTypes(subjectID._id) },{$push:{
-                questions: saved_question._id
-            }})]
-        );
+        if (is_special) {
+            await SpecialPaperModel.findByIdAndUpdate({ _id: marshalIDTypes(paperID) }, {
+                $push: { questions: saved_question._id }
+            })
+        } else {
+            let subjectID = ((await GradeModel.findOne({ grade: paperGrade })
+                    .populate("subjects", "subject _id")) || { subjects: [] })
+                .subjects.find(x => x.subject === paperSubject);
 
-        return {success: true,question:saved_question.toObject()};
-    }catch(error){
+            await Promise.all([
+                PaperModel.findOneAndUpdate({ _id: marshalIDTypes(paperID) }, {
+                    $push: {
+                        questions: saved_question._id
+                    }
+                }),
+                SubjectModel.findOneAndUpdate({ _id: marshalIDTypes(subjectID._id) }, {
+                    $push: {
+                        questions: saved_question._id
+                    }
+                })
+            ]);
+        }
+
+        return { success: true, question: saved_question.toObject() };
+    } catch (error) {
         consola.error(error);
         return {
             success: false,
@@ -300,34 +333,38 @@ const createQuestion = async (questionInput,canReview) => {
     }
 }
 
-
-const removeQuestion = async (questionID) => {
+// reusable
+const removeQuestion = async(questionID) => {
     try {
-        await QuestionsModel.deleteOne({_id:questionID});
+        await QuestionsModel.deleteOne({ _id: questionID });
         return { success: true }
-    }catch(error){
+    } catch (error) {
         consola.error(error);
         return {
             success: false,
-            errors: [ error.message ]
+            errors: [error.message]
         }
     }
 }
 
 
-const updateQuestion = async (questionInput,questionID) => {
+// this is also generic
+const updateQuestion = async(questionInput, questionID) => {
     try {
         const {
             questionType,
-            question,options_next,
-            additionalInfo,children,
-            topic,subTopic
+            question,
+            options_next,
+            additionalInfo,
+            children,
+            topic,
+            subTopic
         } = questionInput;
-    
+
         let questionObject = { question, topic, subTopic };
-    
-    
-        switch(questionType){
+
+
+        switch (questionType) {
             case NORMAL:
                 questionObject = {
                     ...questionObject,
@@ -345,19 +382,20 @@ const updateQuestion = async (questionInput,questionID) => {
                 throw new Error("Unrecognized question type")
         }
 
+        // this is the only unique part of the system
         let updated_question = await QuestionsModel.findOneAndUpdate({
-            _id:marshalIDTypes(questionID)
-        },{ $set: questionObject },{$new:true});
+            _id: marshalIDTypes(questionID)
+        }, { $set: questionObject }, { $new: true });
 
         return {
             success: true,
             question: updated_question.toObject()
         }
-    }catch(error){
+    } catch (error) {
         consola.error(error);
         return {
             success: false,
-            errors:[
+            errors: [
                 error.message
             ]
         }

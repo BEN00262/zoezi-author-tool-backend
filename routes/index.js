@@ -3,6 +3,7 @@ const express = require("express");
 const { ContentService, ContentUploadService } = require('../services');
 const { ensureAuthenticated, hasActiveSubscription } = require("../middlewares");
 const { multerUploader } = require('../utils');
+const SpecialContentService = require("../services/SpecialContentService");
 
 const router = express.Router();
 
@@ -74,20 +75,40 @@ router.get('/approve-question/:id',(req,res) => {
     ContentService.approveQuestion(req.params.id).then(approved_question => res.json(approved_question));
 })
 
-
-
-router.get("/paper-questions/:uid/:page_num?",(req,res) => {
-    const { uid, page_num } = req.params;
-    ContentService.getQuestions(uid, +page_num || 0).then(questions => res.json(questions));
+router.get("/paper-questions/:uid/:is_special/:page_num?",(req,res) => {
+    let { uid, is_special, page_num } = req.params;
+    is_special = is_special === "true"
+    ContentService.getQuestions(uid, is_special, +page_num || 0).then(questions => res.json(questions));
 })
 
-router.post("/create-question",(req,res) => {
+router.post("/create-question/:is_special",(req,res) => {
     const canReview = req.user.roles.includes("can:review");
-    ContentService.createQuestion(req.body,canReview).then(question => res.json(question));
+    // check if the paper is special
+    const is_special = req.params.is_special == "true" ? true : false;
+    ContentService.createQuestion(req.body,canReview, is_special).then(question => res.json(question));
 })
 
 router.delete("/remove-question/:uid",(req,res) => {
     ContentService.removeQuestion(req.params.uid).then(removedQuestion => res.json(removedQuestion));
+})
+
+// special paper routes
+router.post("/special-paper", (req, res) => {
+    const {rootID, ...paperDescritpion} = req.body
+    SpecialContentService.createPaperPathIfNotExists(rootID, paperDescritpion).then(({status_code, response}) => {
+        
+        console.log(response)
+        res.status(status_code).json(response)
+    })
+})
+
+// we count then do the necessary fetching from this side 
+// this is a stupid way btw
+router.get("/special-paper/:rootID/:secondLevel?/:thirdLevel?", (req, res) => {
+    // pass down we only take 
+    SpecialContentService.fetchFileOrFolder(req.params).then(({status_code, response}) => {
+        res.status(status_code).json(response)
+    })
 })
 
 module.exports = router;
