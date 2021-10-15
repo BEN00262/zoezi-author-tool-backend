@@ -76,6 +76,10 @@ const questionSchema = new mongoose.Schema({
         type:String,
         required:false
     },
+
+    // this has undone us buana :( ---> we need to find a better way to do this
+    // NOTE: before the data becomes too unamanageable
+    
     grade:{
 		type:String,
 		required:true

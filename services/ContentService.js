@@ -271,7 +271,9 @@ const createQuestion = async(questionInput, canReview, is_special = false) => {
             subject: paperSubject,
 
             // for special papers this refers to the name of the top level thing
-            grade: paperGrade || "kcpe",
+            // we are now passing this dow to here
+
+            grade: is_special ? `${paperGrade}_special`: paperGrade,
             isExperimental: true,
             isExposed: canReview,
             status: canReview ? "approved" : "ongoing"
