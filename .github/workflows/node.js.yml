@@ -29,4 +29,4 @@ jobs:
     - run: npm ci --production
     - run: cp ~/env/.backend-env .env
     - run: pm2 delete all
-    - run: pm2 start app.js -i max
+    - run: pm2 start app.js --name AuthoringMainBackend --time --no-pmx -i max
