@@ -1,6 +1,6 @@
 const express = require("express");
 const { AuthorService } = require('../services');
-const { ensureAuthenticated } = require('../middlewares/auth');
+const { EnsureIsAuthenticated } = require('../middlewares/auth');
 
 const router = express();
 
@@ -13,7 +13,7 @@ router.post("/login",(req,res) => {
     });
 })
 
-router.get('/metadata',ensureAuthenticated,(req,res) => {
+router.get('/metadata',EnsureIsAuthenticated,(req,res) => {
     // fetch this data from the req object
     res.status(200).json({
         contentCanDo: req.user.contentCanDo,

@@ -24,6 +24,7 @@ let storage = multer.memoryStorage();
 // });
 
 module.exports = {
+    ...require('./hasActiveSub'),
     marshalIDTypes,
     // CloudinaryV2,
     multerUploader: multer({ 
