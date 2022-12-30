@@ -27,6 +27,6 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
     - run: npm ci --production
-    - run: cp ~/.env .
+    - run: cp ~/env/.backend-env .env
     - run: pm2 delete all
     - run: pm2 start app.js -i max

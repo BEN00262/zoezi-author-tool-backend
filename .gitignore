@@ -2,3 +2,4 @@ node_modules
 cleaner.js
 tobedeletedutils
 utils/uploads/**/*
+.env
