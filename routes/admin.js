@@ -1,9 +1,9 @@
 const router = require('express').Router();
 const { AdminService } = require('../services');
-const { ensureAuthenticated } = require('../middlewares')
+const { EnsureIsAuthenticated } = require('../middlewares')
 
 // router.use([
-//     ensureAuthenticated,
+//     EnsureIsAuthenticated,
 //     (req, res, next) => {
 //         if (req.user.isAdmin)
 //             return next();

@@ -1,13 +1,13 @@
 const express = require("express");
 
 const { ContentService, ContentUploadService } = require('../services');
-const { ensureAuthenticated, hasActiveSubscription } = require("../middlewares");
-const { multerUploader } = require('../utils');
+const { EnsureIsAuthenticated } = require("../middlewares");
+const { multerUploader, hasActiveSubscription } = require('../utils');
 const SpecialContentService = require("../services/SpecialContentService");
 
 const router = express.Router();
 
-router.use(ensureAuthenticated);
+router.use(EnsureIsAuthenticated);
 
 router.post('/import-excel-paper',[multerUploader.single('excelFile')],(req,res) => {
     const { grade } = req.body;
