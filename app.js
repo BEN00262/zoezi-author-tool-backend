@@ -3,14 +3,21 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const path = require("path");
 
-const PORT = process.env.PORT || 3500;
+const PORT = process.env.PORT || 3000;
 
 const app = express();
         
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+app.use(express.static(path.join(__dirname, 'public', 'build')));
+
+app.get('/', function (req, res) {
+  res.sendFile(path.join(__dirname, 'build', 'index.html'));
+});
 
 app.use("/user",require("./routes/users.js"));
 app.use("/admin", require("./routes/admin"));
