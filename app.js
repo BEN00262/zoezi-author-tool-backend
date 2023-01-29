@@ -4,6 +4,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
+const bodyParser = require('body-parser');
 
 const PORT = process.env.PORT || 3000;
 
@@ -11,9 +12,8 @@ const app = express();
         
 app.use(cors());
 
-app.use(express.limit('5M'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(bodyParser.json({ limit: '5mb' }));
+app.use(bodyParser.urlencoded({ extended: false, limit: '5mb' }));
 
 app.use(express.static(path.join(__dirname, 'public', 'build')));
 
