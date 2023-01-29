@@ -15,13 +15,13 @@ app.use(express.urlencoded({ extended: false }));
 
 app.use(express.static(path.join(__dirname, 'public', 'build')));
 
-app.get('/', function (req, res) {
-  res.sendFile(path.join(__dirname, 'build', 'index.html'));
-});
+app.use("/api/user",require("./routes/users.js"));
+app.use("/api/admin", require("./routes/admin"));
+app.use("/api",require("./routes/index.js"));
 
-app.use("/user",require("./routes/users.js"));
-app.use("/admin", require("./routes/admin"));
-app.use("/",require("./routes/index.js"));
+app.get('*', function (req, res) {
+    res.sendFile(path.join(__dirname, 'public', 'build', 'index.html'));
+});
 
 mongoose.connect(process.env.MONGO_URI,{
     useNewUrlParser: true,
