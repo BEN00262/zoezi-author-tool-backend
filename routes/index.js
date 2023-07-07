@@ -30,7 +30,7 @@ router.post('/set-sample/:_id',(req,res) => {
 })
 
 // use query strings
-router.get('/search/:paperID',(req,res) => {
+router.get('/search/:paperID/:not_relevant',(req,res) => {
     const { searchTerm, searchCategory } = req.query;
 
     const searchDic = {}

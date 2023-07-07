@@ -19,7 +19,7 @@ app.use(express.static(path.join(__dirname, 'public', 'build')));
 
 app.use("/api/user",require("./routes/users.js"));
 app.use("/api/admin", require("./routes/admin"));
-app.use("/api",require("./routes/index.js"));
+app.use("/api/",require("./routes/index.js"));
 
 app.get('*', function (req, res) {
     res.sendFile(path.join(__dirname, 'public', 'build', 'index.html'));
