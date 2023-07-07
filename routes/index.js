@@ -12,12 +12,12 @@ router.use(EnsureIsAuthenticated);
 router.post('/import-excel-paper',[multerUploader.single('excelFile')],(req,res) => {
     const { grade } = req.body;
 
-    if (!hasActiveSubscription(grade,req.user.subscriptions)){
-        return res.json({
-            success: false,
-            error: `You do not have an active subscription to grade: ${grade}`
-        })
-    }
+    // if (!hasActiveSubscription(grade,req.user.subscriptions)){
+    //     return res.json({
+    //         success: false,
+    //         error: `You do not have an active subscription to grade: ${grade}`
+    //     })
+    // }
 
     ContentUploadService.uploadFile(req.user, grade, req.file).then(response => res.json(response))
 })
@@ -48,12 +48,12 @@ router.get('/search/:paperID',(req,res) => {
 router.post("/create-paper",(req,res) => {
     const { grade } = req.body;
 
-    if (!hasActiveSubscription(grade,req.user.subscriptions)){
-        return res.json({
-            success: false,
-            errors: [`You do not have an active subscription to grade: ${grade}`]
-        })
-    }
+    // if (!hasActiveSubscription(grade,req.user.subscriptions)){
+    //     return res.json({
+    //         success: false,
+    //         errors: [`You do not have an active subscription to grade: ${grade}`]
+    //     })
+    // }
 
     ContentService.createPaper(req.body,req.user._id).then(createdPaper => res.json(createdPaper));
 })
